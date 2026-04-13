@@ -17,10 +17,10 @@ const Index = () => {
             Your AI reading companion that understands where you are in every book—delivering smart insights without spoilers.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
-            <Button size="lg" onClick={() => navigate("/login")} className="w-full sm:w-auto">
+            <Button size="lg" onClick={() => navigate("/auth")} className="w-full sm:w-auto">
               Get Started
             </Button>
-            <Button size="lg" variant="outline" onClick={() => navigate("/login")} className="w-full sm:w-auto">
+            <Button size="lg" variant="outline" onClick={() => navigate("/auth")} className="w-full sm:w-auto">
               Sign In
             </Button>
           </div>
@@ -125,7 +125,7 @@ const Index = () => {
             <p className="text-xs sm:text-sm text-muted-foreground">
               100 free AI requests to try out all features
             </p>
-            <Button className="w-full" variant="outline" onClick={() => navigate("/login")}>
+            <Button className="w-full" variant="outline" onClick={() => navigate("/auth")}>
               Get Started
             </Button>
           </div>
@@ -136,7 +136,7 @@ const Index = () => {
             <p className="text-xs sm:text-sm text-muted-foreground">
               ~500 AI requests. Perfect for casual readers tackling 1-2 books per month.
             </p>
-            <Button className="w-full" onClick={() => navigate("/login")}>
+            <Button className="w-full" onClick={() => navigate("/auth")}>
               Buy Tokens
             </Button>
           </div>
@@ -147,7 +147,7 @@ const Index = () => {
             <p className="text-xs sm:text-sm text-muted-foreground">
               ~1500 AI requests. Ideal for students and avid readers working through multiple books.
             </p>
-            <Button className="w-full" variant="outline" onClick={() => navigate("/login")}>
+            <Button className="w-full" variant="outline" onClick={() => navigate("/auth")}>
               Buy Tokens
             </Button>
           </div>
@@ -163,7 +163,7 @@ const Index = () => {
           <p className="text-base sm:text-lg max-w-2xl mx-auto opacity-90">
             Join readers who never forget what they read. Upload your first book and see the difference AI-powered insights make.
           </p>
-          <Button size="lg" variant="secondary" onClick={() => navigate("/login")}>
+          <Button size="lg" variant="secondary" onClick={() => navigate("/auth")}>
             Get Started Free
           </Button>
         </div>

@@ -47,20 +47,47 @@ const Reader = () => {
     if (user && id) loadBook();
   }, [user, id]);
 
-  const loadBook = async () => {
-    const [bookRes, progressRes] = await Promise.all([
-      supabase.from("books").select("*").eq("id", id!).single(),
-      supabase.from("reading_progress").select("*").eq("book_id", id!).single(),
-    ]);
+const loadBook = async () => {
+  const [bookRes, progressRes] = await Promise.all([
+    supabase.from("books").select("*").eq("id", id!).single(),
+    supabase.from("reading_progress").select("*").eq("book_id", id!).single(),
+  ]);
 
-    if (bookRes.error || !bookRes.data) {
-      toast.error("Book not found");
-      navigate("/dashboard");
-      return;
-    }
+  if (bookRes.error || !bookRes.data) {
+    toast.error("Book not found");
+    navigate("/dashboard");
+    return;
+  }
 
-    setBook(bookRes.data);
-    setProgress(progressRes.data || null);
+  setBook(bookRes.data);
+  setProgress(progressRes.data || null);
+
+  const savedPage = progressRes.data?.current_page;
+  if (typeof savedPage === "number" && savedPage > 0) {
+    setCurrentPage(savedPage);
+    currentPageRef.current = savedPage;
+  }
+
+  const savedTotalPages = bookRes.data.total_pages;
+  if (typeof savedTotalPages === "number" && savedTotalPages > 0) {
+    setTotalPages(savedTotalPages);
+    totalPagesRef.current = savedTotalPages;
+  }
+
+  if (!bookRes.data.file_url) {
+    toast.error("No file uploaded for this book");
+    navigate(`/book/${id}`);
+    return;
+  }
+
+  // Use public URL
+  const { data: publicUrlData } = supabase.storage
+    .from("books")
+    .getPublicUrl(bookRes.data.file_url);
+
+  setFileUrl(publicUrlData.publicUrl);
+  setLoading(false);
+};
 
     const savedPage = progressRes.data?.current_page;
     if (typeof savedPage === "number" && savedPage > 0) {

@@ -8,6 +8,8 @@ interface EpubReaderProps {
   onLocationChange?: (cfi: string) => void;
   onPageInfo?: (current: number, total: number) => void;
   onPassageChange?: (passage: string) => void;
+  onTextSelect?: (payload: { text: string }) => void;
+  onVisibleTextChange?: (text: string) => void;
   initialLocation?: string;
 }
 
@@ -16,9 +18,10 @@ const EpubReader: React.FC<EpubReaderProps> = ({
   onLocationChange,
   onPageInfo,
   onPassageChange,
+  onTextSelect,
+  onVisibleTextChange,
   initialLocation,
 }) => {
-  // Prevent epub.js from running with null
   if (!fileUrl) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -45,12 +48,15 @@ const EpubReader: React.FC<EpubReaderProps> = ({
 
         console.log("EpubReader received fileUrl:", fileUrl);
 
+        // ⭐ Create book FIRST
         const book = ePub(fileUrl);
-        bookRef.current = book;
 
-        // ⭐ REQUIRED FIX FOR BLOB EPUBS
+        // ⭐ Apply resource override IMMEDIATELY (before any rendering)
         book.resources.replacements((resource) => resource.createUrl());
 
+        bookRef.current = book;
+
+        // ⭐ Render AFTER override
         const rendition = book.renderTo(viewerRef.current, {
           width: "100%",
           height: "100%",
@@ -60,35 +66,47 @@ const EpubReader: React.FC<EpubReaderProps> = ({
 
         rendition.themes.fontSize(`${fontSize}%`);
 
-        // Display initial location or start of book
+        // ⭐ Selection callback
+        rendition.on("selected", (cfiRange: string, contents: any) => {
+          const text = contents.window.getSelection().toString();
+          if (text && text.trim().length > 1) {
+            onTextSelect?.({ text });
+          }
+        });
+
+        // ⭐ Display initial location or start
         if (initialLocation) {
           await rendition.display(initialLocation);
         } else {
           await rendition.display();
         }
 
-        // Wait for book to be ready and calculate sequential pages
+        // ⭐ Wait for book to be ready
         await book.ready;
+
+        // ⭐ Generate locations
         await book.locations.generate(1024);
 
         const locations = book.locations;
         const totalPageCount = locations.length();
         setTotalPages(totalPageCount);
 
-        // Track page changes with sequential numbering
+        // ⭐ Track page changes
         rendition.on("relocated", (location: any) => {
           const currentCfi = location.start.cfi;
           onLocationChange?.(currentCfi);
 
           const pageNum = locations.locationFromCfi(currentCfi);
           const sequentialPage = pageNum ? pageNum + 1 : 1;
+
           setCurrentPage(sequentialPage);
           onPageInfo?.(sequentialPage, totalPageCount);
 
-          const range = location.start.cfi ? rendition.getRange(location.start.cfi) : null;
+          const range = rendition.getRange(location.start.cfi);
           if (range) {
-            const passage = range.toString().slice(0, 3000);
-            onPassageChange?.(passage);
+            const text = range.toString().slice(0, 3000);
+            onPassageChange?.(text);
+            onVisibleTextChange?.(text);
           }
         });
 

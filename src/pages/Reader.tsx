@@ -18,6 +18,7 @@ const Reader = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
+
   const [book, setBook] = useState<Book | null>(null);
   const [progress, setProgress] = useState<Progress | null>(null);
   const [fileUrl, setFileUrl] = useState<string | null>(null);
@@ -32,6 +33,7 @@ const Reader = () => {
   const [vocabNonce, setVocabNonce] = useState(0);
   const [selection, setSelection] = useState<TextSelectionPayload | null>(null);
   const [currentPassage, setCurrentPassage] = useState("");
+
   const [currentPage, setCurrentPage] = useState(0);
   const currentPageRef = useRef(0);
   const [totalPages, setTotalPages] = useState(0);
@@ -47,47 +49,21 @@ const Reader = () => {
     if (user && id) loadBook();
   }, [user, id]);
 
-const loadBook = async () => {
-  const [bookRes, progressRes] = await Promise.all([
-    supabase.from("books").select("*").eq("id", id!).single(),
-    supabase.from("reading_progress").select("*").eq("book_id", id!).single(),
-  ]);
+  // ⭐ FINAL, CORRECT VERSION
+  const loadBook = async () => {
+    const [bookRes, progressRes] = await Promise.all([
+      supabase.from("books").select("*").eq("id", id!).single(),
+      supabase.from("reading_progress").select("*").eq("book_id", id!).single(),
+    ]);
 
-  if (bookRes.error || !bookRes.data) {
-    toast.error("Book not found");
-    navigate("/dashboard");
-    return;
-  }
+    if (bookRes.error || !bookRes.data) {
+      toast.error("Book not found");
+      navigate("/dashboard");
+      return;
+    }
 
-  setBook(bookRes.data);
-  setProgress(progressRes.data || null);
-
-  const savedPage = progressRes.data?.current_page;
-  if (typeof savedPage === "number" && savedPage > 0) {
-    setCurrentPage(savedPage);
-    currentPageRef.current = savedPage;
-  }
-
-  const savedTotalPages = bookRes.data.total_pages;
-  if (typeof savedTotalPages === "number" && savedTotalPages > 0) {
-    setTotalPages(savedTotalPages);
-    totalPagesRef.current = savedTotalPages;
-  }
-
-  if (!bookRes.data.file_url) {
-    toast.error("No file uploaded for this book");
-    navigate(`/book/${id}`);
-    return;
-  }
-
-  // Use public URL
-  const { data: publicUrlData } = supabase.storage
-    .from("books")
-    .getPublicUrl(bookRes.data.file_url);
-
-  setFileUrl(publicUrlData.publicUrl);
-  setLoading(false);
-};
+    setBook(bookRes.data);
+    setProgress(progressRes.data || null);
 
     const savedPage = progressRes.data?.current_page;
     if (typeof savedPage === "number" && savedPage > 0) {
@@ -107,35 +83,36 @@ const loadBook = async () => {
       return;
     }
 
-    // ⭐ FIX: Download the file as a Blob instead of using createSignedUrl
-    const { data: fileData, error: fileError } = await supabase.storage
+    // ⭐ Use public URL instead of signed URL
+    const { data: publicUrlData } = supabase.storage
       .from("books")
-      .download(bookRes.data.file_url);
+      .getPublicUrl(bookRes.data.file_url);
 
-    if (fileError || !fileData) {
-      toast.error("Failed to download book file");
-      navigate(`/book/${id}`);
-      return;
-    }
-
-    const blobUrl = URL.createObjectURL(fileData);
-    setFileUrl(blobUrl);
-
+    setFileUrl(publicUrlData.publicUrl);
     setLoading(false);
-  }; // ← IMPORTANT: closes loadBook()
+  };
 
   const handleLocationChange = useCallback((cfi: string) => {
     if (!user || !id) return;
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+
     saveTimeoutRef.current = setTimeout(async () => {
       const tp = totalPagesRef.current;
       const cp = currentPageRef.current;
       const percentage = tp > 0 ? Math.min((cp / tp) * 100, 100) : 0;
-      await supabase.from("reading_progress").upsert({
-        user_id: user.id, book_id: id, location_cfi: cfi, status: "reading",
-        current_page: cp,
-        percentage,
-      } as any, { onConflict: "user_id,book_id" });
+
+      await supabase.from("reading_progress").upsert(
+        {
+          user_id: user.id,
+          book_id: id,
+          location_cfi: cfi,
+          status: "reading",
+          current_page: cp,
+          percentage,
+        } as any,
+        { onConflict: "user_id,book_id" }
+      );
+
       if (tp > 0) {
         await supabase.from("books").update({ total_pages: tp }).eq("id", id);
       }
@@ -145,13 +122,21 @@ const loadBook = async () => {
   const handlePageChange = useCallback((page: number) => {
     if (!user || !id || !book) return;
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+
     saveTimeoutRef.current = setTimeout(async () => {
       const tp = totalPagesRef.current || book.total_pages || 1;
       const percentage = (page / tp) * 100;
-      await supabase.from("reading_progress").upsert({
-        user_id: user.id, book_id: id, current_page: page,
-        percentage: Math.min(percentage, 100), status: "reading",
-      } as any, { onConflict: "user_id,book_id" });
+
+      await supabase.from("reading_progress").upsert(
+        {
+          user_id: user.id,
+          book_id: id,
+          current_page: page,
+          percentage: Math.min(percentage, 100),
+          status: "reading",
+        } as any,
+        { onConflict: "user_id,book_id" }
+      );
     }, 2000);
   }, [user, id, book]);
 
@@ -194,7 +179,10 @@ const loadBook = async () => {
 
   const handleTextSelect = useCallback((payload: TextSelectionPayload) => {
     const text = payload.text.trim();
-    if (!text || text.length < 2) { setSelection(null); return; }
+    if (!text || text.length < 2) {
+      setSelection(null);
+      return;
+    }
     setSelection(payload);
   }, []);
 
@@ -203,7 +191,9 @@ const loadBook = async () => {
   }, []);
 
   useEffect(() => {
-    return () => { if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current); };
+    return () => {
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    };
   }, []);
 
   if (loading || authLoading) {
@@ -220,7 +210,8 @@ const loadBook = async () => {
   const isPdf = book.file_type === "pdf";
   const savedLocation = (progress as any)?.location_cfi || undefined;
   const savedPage = progress?.current_page || 1;
-  const progressPct = totalPages > 0 ? Math.min(Math.round((currentPage / totalPages) * 100), 100) : 0;
+  const progressPct =
+    totalPages > 0 ? Math.min(Math.round((currentPage / totalPages) * 100), 100) : 0;
 
   return (
     <div className="h-screen flex flex-col bg-background">
@@ -234,6 +225,7 @@ const loadBook = async () => {
               <ArrowLeft className="w-4 h-4" />
               <span className="text-sm">Back</span>
             </button>
+
             <button
               onClick={() => navigate("/dashboard")}
               className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors"
@@ -243,6 +235,7 @@ const loadBook = async () => {
               <span className="text-sm hidden sm:inline">Dashboard</span>
             </button>
           </div>
+
           <div className="flex flex-col items-center">
             <span className="text-sm font-medium text-foreground truncate max-w-[30%]">
               {book.title}
@@ -253,19 +246,26 @@ const loadBook = async () => {
               </span>
             )}
           </div>
+
           <div className="flex items-center gap-3">
             <button
               onClick={() => setPanelOpen(!panelOpen)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                panelOpen ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                panelOpen
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-secondary hover:text-foreground"
               }`}
             >
               <Sparkles className="w-3.5 h-3.5" />
               AI Insights
             </button>
+
             <div className="flex items-center gap-1.5">
               <BookOpen className="w-4 h-4 text-primary" />
-              <span className="text-xs font-bold text-foreground" style={{ fontFamily: "var(--font-display)" }}>
+              <span
+                className="text-xs font-bold text-foreground"
+                style={{ fontFamily: "var(--font-display)" }}
+              >
                 Readwimmy
               </span>
             </div>
@@ -286,12 +286,15 @@ const loadBook = async () => {
               <EpubReader
                 fileUrl={fileUrl}
                 onLocationChange={handleLocationChange}
-                savedLocation={savedLocation}
+                initialLocation={savedLocation}
                 onTextSelect={handleTextSelect}
-                onVisibleTextChange={handleVisibleTextChange}
-                onPageInfo={handlePageInfo}
+                onPassageChange={handleVisibleTextChange}
+                onPageInfo={(current, total) =>
+                  handlePageInfo({ currentPage: current, totalPages: total })
+                }
               />
             )}
+
             {isPdf && (
               <PdfReader
                 fileUrl={fileUrl}
@@ -299,7 +302,9 @@ const loadBook = async () => {
                 savedPage={savedPage}
                 onTextSelect={handleTextSelect}
                 onVisibleTextChange={handleVisibleTextChange}
-                onPageInfo={handlePageInfo}
+                onPageInfo={(current, total) =>
+                  handlePageInfo({ currentPage: current, totalPages: total })
+                }
               />
             )}
           </Suspense>

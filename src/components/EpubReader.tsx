@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, Minus, Plus, Loader2 } from "lucide-react";
 
 interface EpubReaderProps {
-  fileUrl: string;
+  fileUrl: string | null; // ⭐ FIX: allow null
   onLocationChange?: (cfi: string) => void;
   onPageInfo?: (current: number, total: number) => void;
   onPassageChange?: (passage: string) => void;
@@ -18,10 +18,19 @@ const EpubReader: React.FC<EpubReaderProps> = ({
   onPassageChange,
   initialLocation,
 }) => {
+  // ⭐ FIX: Prevent epub.js from running with null
+  if (!fileUrl) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   const viewerRef = useRef<HTMLDivElement>(null);
   const bookRef = useRef<Book | null>(null);
   const renditionRef = useRef<Rendition | null>(null);
-  
+
   const [isLoading, setIsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
@@ -33,6 +42,9 @@ const EpubReader: React.FC<EpubReaderProps> = ({
     const initBook = async () => {
       try {
         setIsLoading(true);
+
+        console.log("EpubReader received fileUrl:", fileUrl); // ⭐ DEBUG
+
         const book = ePub(fileUrl);
         bookRef.current = book;
 
@@ -54,8 +66,8 @@ const EpubReader: React.FC<EpubReaderProps> = ({
 
         // Wait for book to be ready and calculate sequential pages
         await book.ready;
-        await book.locations.generate(1024); // Generate location points
-        
+        await book.locations.generate(1024);
+
         const locations = book.locations;
         const totalPageCount = locations.length();
         setTotalPages(totalPageCount);
@@ -65,13 +77,11 @@ const EpubReader: React.FC<EpubReaderProps> = ({
           const currentCfi = location.start.cfi;
           onLocationChange?.(currentCfi);
 
-          // Get sequential page number from locations
           const pageNum = locations.locationFromCfi(currentCfi);
-          const sequentialPage = pageNum ? pageNum + 1 : 1; // 1-indexed
+          const sequentialPage = pageNum ? pageNum + 1 : 1;
           setCurrentPage(sequentialPage);
           onPageInfo?.(sequentialPage, totalPageCount);
 
-          // Extract passage text
           const range = location.start.cfi ? rendition.getRange(location.start.cfi) : null;
           if (range) {
             const passage = range.toString().slice(0, 3000);
@@ -107,7 +117,7 @@ const EpubReader: React.FC<EpubReaderProps> = ({
 
   const jumpToPage = (pageNumber: number) => {
     if (!bookRef.current?.locations || pageNumber < 1 || pageNumber > totalPages) return;
-    const cfi = bookRef.current.locations.cfiFromLocation(pageNumber - 1); // 0-indexed internally
+    const cfi = bookRef.current.locations.cfiFromLocation(pageNumber - 1);
     if (cfi) {
       renditionRef.current?.display(cfi);
     }

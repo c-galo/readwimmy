@@ -80,19 +80,22 @@ const Reader = () => {
       return;
     }
 
-    const { data: signedData, error: signedError } = await supabase.storage
+    // ⭐ FIX: Download the file as a Blob instead of using createSignedUrl
+    const { data: fileData, error: fileError } = await supabase.storage
       .from("books")
-      .createSignedUrl(bookRes.data.file_url, 3600);
+      .download(bookRes.data.file_url);
 
-    if (signedError || !signedData?.signedUrl) {
-      toast.error("Failed to load book file");
+    if (fileError || !fileData) {
+      toast.error("Failed to download book file");
       navigate(`/book/${id}`);
       return;
     }
 
-    setFileUrl(signedData.signedUrl);
+    const blobUrl = URL.createObjectURL(fileData);
+    setFileUrl(blobUrl);
+
     setLoading(false);
-  };
+  }; // ← IMPORTANT: closes loadBook()
 
   const handleLocationChange = useCallback((cfi: string) => {
     if (!user || !id) return;

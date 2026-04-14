@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, Minus, Plus, Loader2 } from "lucide-react";
 
 interface EpubReaderProps {
-  fileUrl: string | null; // ⭐ FIX: allow null
+  fileUrl: string | null;
   onLocationChange?: (cfi: string) => void;
   onPageInfo?: (current: number, total: number) => void;
   onPassageChange?: (passage: string) => void;
@@ -18,7 +18,7 @@ const EpubReader: React.FC<EpubReaderProps> = ({
   onPassageChange,
   initialLocation,
 }) => {
-  // ⭐ FIX: Prevent epub.js from running with null
+  // Prevent epub.js from running with null
   if (!fileUrl) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -43,10 +43,13 @@ const EpubReader: React.FC<EpubReaderProps> = ({
       try {
         setIsLoading(true);
 
-        console.log("EpubReader received fileUrl:", fileUrl); // ⭐ DEBUG
+        console.log("EpubReader received fileUrl:", fileUrl);
 
         const book = ePub(fileUrl);
         bookRef.current = book;
+
+        // ⭐ REQUIRED FIX FOR BLOB EPUBS
+        book.resources.replacements((resource) => resource.createUrl());
 
         const rendition = book.renderTo(viewerRef.current, {
           width: "100%",
